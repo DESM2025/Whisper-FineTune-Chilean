@@ -4,7 +4,7 @@ Además, incluye una interfaz web interactiva con Streamlit para probar el model
 Debido a las restricciones de tamaño de archivo de GitHub el modelo entrenado (`whisper_tiny_chileno_final`) no se incluye
 
 - Entrenamiento: Scripts para re-entrenar Whisper usando Hugging Face Transformers.
-- Preprocesamiento:*Pipeline de audio usando `librosa` y `datasets`.
+- Preprocesamiento:Pipeline de audio usando `librosa` y `datasets`.
 - Demo Interactiva: App web (`app.py`) para transcribir audios y visualizar el espectrograma de Mel.
 - Metricas: Evaluación del modelo mediante WER (Word Error Rate).
 
