@@ -1,0 +1,22 @@
+name: whisper-finetune
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - ffmpeg  # Vital para leer audio (mp3, wav)
+  - pip:
+    - torch
+    - numpy
+    - matplotlib
+    - seaborn
+    - librosa
+    - pandas
+    - streamlit
+    - transformers
+    - datasets
+    - evaluate
+    - jiwer          # Para calcular la métrica WER (Word Error Rate)
+    - accelerate     # Necesario para el Trainer de Hugging Face
+    - soundfile      # Backend para leer audio

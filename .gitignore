@@ -1,0 +1,9 @@
+# --- Ignorar Modelos Pesados ---
+whisper_tiny_chileno_final/
+whisper-tiny-chilean/
+
+# --- Ignorar Archivos Temporales ---
+__pycache__/
+*.ipynb_checkpoints
+.DS_Store
+*.mp3
