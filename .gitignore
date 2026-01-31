@@ -1,9 +1,32 @@
-# --- Ignorar Modelos Pesados ---
+# Modelos entrenados
 whisper_tiny_chileno_final/
 whisper-tiny-chilean/
+*.safetensors
+*.pt
+*.pth
 
-# --- Ignorar Archivos Temporales ---
+# Python
 __pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Jupyter
+.ipynb_checkpoints/
 *.ipynb_checkpoints
-.DS_Store
-*.mp3
+
+# Archivos de audio de prueba
+#*.mp3
+#*.wav
+#*.m4a
+temp_audio_input.*
+
+# Logs
+logs/
+*.log
+
+
+# Entornos virtuales
+venv/
+env/
+.conda/

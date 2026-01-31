@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 
 st.set_page_config(
-    page_title="Whisper Chileno - Demo",
+    page_title="Whisper Chileno",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -24,8 +24,7 @@ st.markdown("""
 with st.sidebar:
     st.title("Proyecto Semestral")
     st.markdown("---")
-    st.metric(label="Fecha", value=datetime.now().strftime("%d/%m/%Y"))
-    st.info("**Modelo:** Whisper Tiny (Fine-Tuned)\n\n**Dataset:** Spanish-Chilean\n\n**GPU:** RTX 4060")
+    st.info("Modelo: Whisper Tiny (Fine-Tuned)\n\n**Dataset:** Spanish-Chilean\n\n**GPU:** RTX 4060")
     st.caption("Deep Learning 2025 diego silva/pablo ibañes")
 
 # CARGA DEL MODELO 
@@ -46,9 +45,7 @@ def load_model_pipeline():
 
 processor, model = load_model_pipeline()
 
-# FUNCIONES
 def process_audio(audio_file):
-    # Detectar extension para evitar errores
     file_extension = audio_file.name.split(".")[-1].lower()
     temp_filename = f"temp_audio_input.{file_extension}"
     
@@ -56,7 +53,6 @@ def process_audio(audio_file):
         f.write(audio_file.getbuffer())
     
     try:
-        # Cargar audio a 16kHz
         speech_array, sampling_rate = librosa.load(temp_filename, sr=16000)
         return speech_array, sampling_rate, temp_filename
     except Exception as e:
@@ -65,30 +61,54 @@ def process_audio(audio_file):
         raise e
 
 def plot_attention(model, processor, inputs, predicted_ids):
-    outputs = model(input_features=inputs, decoder_input_ids=predicted_ids, output_attentions=True)
-    cross_attentions = outputs.cross_attentions[-1]
-    attention_matrix = cross_attentions[0].mean(dim=0).detach().cpu().numpy()
+    try:
+        # Generar atenciones
+        with torch.no_grad():
+            outputs = model(
+                input_features=inputs, 
+                decoder_input_ids=predicted_ids, 
+                output_attentions=True
+            )
+        
+        cross_attentions = outputs.cross_attentions[-1]
+        attention_matrix = cross_attentions[0].mean(dim=0).detach().cpu().numpy()
+        
+        if attention_matrix.shape[0] != len(predicted_ids[0]):
+            attention_matrix = attention_matrix.T
+        
+        tokens = processor.tokenizer.convert_ids_to_tokens(predicted_ids[0].cpu())
+        cleaned_tokens = [t.replace('Ġ', ' ').replace('Ċ', '') for t in tokens]
+        
+        # Limitar tokens para visualizacion (max 50)
+        if len(cleaned_tokens) > 50:
+            attention_matrix = attention_matrix[:50, :]
+            cleaned_tokens = cleaned_tokens[:50]
+        
+        plt.style.use("dark_background")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.heatmap(
+            attention_matrix, 
+            xticklabels=False, 
+            yticklabels=cleaned_tokens, 
+            cmap="plasma", 
+            cbar_kws={'label': 'Atencion'}, 
+            ax=ax
+        )
+        ax.set_title("XAI: Sincronizacion Audio-Texto (Primeros 30s)", fontsize=14, color="white")
+        ax.set_xlabel("Tiempo (Audio)", fontsize=12)
+        ax.set_ylabel("Tokens", fontsize=12)
+        plt.tight_layout()
+        return fig
     
-    if attention_matrix.shape[0] != len(predicted_ids[0]):
-        attention_matrix = attention_matrix.T
-    
-    tokens = processor.tokenizer.convert_ids_to_tokens(predicted_ids[0])
-    cleaned_tokens = [t.replace('Ġ', ' ').replace('Ċ', '') for t in tokens]
-    
-    plt.style.use("dark_background")
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sns.heatmap(attention_matrix, xticklabels=False, yticklabels=cleaned_tokens, cmap="plasma", cbar_kws={'label': 'Atención'}, ax=ax)
-    ax.set_title("XAI: Sincronización Audio-Texto (Primeros 30s)", fontsize=14, color="white")
-    ax.set_xlabel("Tiempo (Audio)", fontsize=12)
-    ax.set_ylabel("Tokens", fontsize=12)
-    return fig
+    except Exception as e:
+        st.warning(f"No se pudo generar el mapa XAI: {e}")
+        return None
 
-st.markdown('<div class="main-title">🇨🇱 Inferencia de Voz</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Inferencia de Voz</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Modelo adaptado al acento chileno</div>', unsafe_allow_html=True)
 
 col_izq, col_der = st.columns([1, 1.5], gap="large")
 
-# COLUMNA IZQUIERDA
 with col_izq:
     with st.container(border=True):
         st.subheader("1. Entrada de Audio")
@@ -106,10 +126,10 @@ with col_izq:
                             # Cargar Audio
                             speech_array, sampling_rate, temp_file = process_audio(uploaded_file)
                             
-                            # Detectar dispositivo (GPU o CPU)
+                            # Detectar dispositivo
                             device = "cuda:0" if torch.cuda.is_available() else "cpu"
                             
-                            # Crear pipeline automático
+                            # Transcripcion completa con pipeline
                             pipe = pipeline(
                                 "automatic-speech-recognition",
                                 model=model,
@@ -119,32 +139,48 @@ with col_izq:
                                 device=device
                             )
                             
-                            # Generar texto completo forzando español
                             result = pipe(
                                 temp_file, 
                                 generate_kwargs={"language": "spanish", "task": "transcribe"}
                             )
                             transcription_full = result["text"]
-
-                            # Seguimos usando el metodo manual solo para obtener la matriz de atención
-                            inputs = processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
-                            # Recortamos si es muy largo solo para el gráfico (evita errores de memoria)
-                            if inputs.shape[-1] > 3000: 
-                                inputs = inputs[:, :, :3000]
                             
-                            if torch.cuda.is_available():
-                                inputs = inputs.to("cuda")
-                                
-                            predicted_ids_xai = model.generate(
-                                inputs, 
-                                num_beams=5, 
-                                language="spanish", 
-                                task="transcribe"
-                            )
-                            
-                            # Guardar en sesion
+                            # Guardar transcripcion
                             st.session_state['transcription'] = transcription_full
-                            st.session_state['fig'] = plot_attention(model, processor, inputs.to("cpu"), predicted_ids_xai.to("cpu"))
+                            
+                            # Generar XAI solo para los primeros 30s (opcional)
+                            try:
+                                with st.spinner("Generando mapa de atencion XAI..."):
+                                    inputs = processor(
+                                        speech_array, 
+                                        sampling_rate=sampling_rate, 
+                                        return_tensors="pt"
+                                    ).input_features
+                                    
+                                    # Recortar a 30 segundos (~3000 frames)
+                                    if inputs.shape[-1] > 3000: 
+                                        inputs = inputs[:, :, :3000]
+                                    
+                                    if torch.cuda.is_available():
+                                        inputs = inputs.to("cuda")
+                                    
+                                    predicted_ids_xai = model.generate(
+                                        inputs, 
+                                        max_new_tokens=50,  # Limitar tokens para XAI
+                                        language="spanish", 
+                                        task="transcribe"
+                                    )
+                                    
+                                    fig = plot_attention(model, processor, inputs, predicted_ids_xai)
+                                    
+                                    if fig is not None:
+                                        st.session_state['fig'] = fig
+                                    else:
+                                        st.session_state['fig'] = None
+                            
+                            except Exception as xai_error:
+                                st.warning(f"XAI no disponible: {xai_error}")
+                                st.session_state['fig'] = None
                         
                         except Exception as e:
                             st.error(f"Error: {e}")
@@ -152,7 +188,6 @@ with col_izq:
                             if temp_file and os.path.exists(temp_file):
                                 os.remove(temp_file)
 
-# COLUMNA DERECHA
 with col_der:
     with st.container(border=True):
         st.subheader("2. Resultados")
@@ -161,19 +196,25 @@ with col_der:
             st.success("Inferencia Completada")
             
             st.markdown("#### Texto Transcrito")
-            # Usamos un área de texto con scroll para audios largos
             st.text_area("", value=st.session_state['transcription'], height=200)
             
-            st.markdown("#### Explicabilidad (XAI - Inicio)")
-            st.pyplot(st.session_state['fig'])
+            # Mostrar XAI solo si existe
+            if 'fig' in st.session_state and st.session_state['fig'] is not None:
+                st.markdown("#### Explicabilidad (XAI - Inicio)")
+                st.pyplot(st.session_state['fig'])
+            else:
+                st.info("Mapa XAI no disponible (audio muy largo o error en generacion)")
             
             if st.button("Limpiar Resultados"):
-                del st.session_state['transcription']
+                if 'transcription' in st.session_state:
+                    del st.session_state['transcription']
+                if 'fig' in st.session_state:
+                    del st.session_state['fig']
                 st.rerun()
         else:
             st.info("Esperando entrada...")
             st.markdown(
                 """<div style="text-align: center; color: gray; padding: 50px;">
-                <h3>Resultados aparecerán aquí</h3></div>""", 
+                <h3>Resultados apareceran aqui</h3></div>""", 
                 unsafe_allow_html=True
             )
